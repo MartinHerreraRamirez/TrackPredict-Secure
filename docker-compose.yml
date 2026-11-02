@@ -1,0 +1,61 @@
+# TrackPredict Secure - despliegue local con Docker Compose
+# Solo el front (8081) y la API Java (8080) quedan publicados. El servicio Python NO se expone al host:
+# unicamente Java puede invocarlo, por la red interna de Compose.
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: trackpredict
+      POSTGRES_USER: ${DB_USER:-trackpredict}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-trackpredict}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-trackpredict} -d trackpredict"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  analytics:
+    build: ./analytics-python
+    environment:
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  backend:
+    build: ./backend-java
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/trackpredict
+      DB_USER: ${DB_USER:-trackpredict}
+      DB_PASSWORD: ${DB_PASSWORD:-trackpredict}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-dev-only-secret-change-me}
+      ANALYTICS_URL: http://analytics:8000
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
+    depends_on:
+      db: { condition: service_healthy }
+      analytics: { condition: service_healthy }
+    ports: ["8080:8080"]
+
+  frontend:
+    build: ./frontend
+    depends_on: [backend]
+    ports: ["8081:80"]
+
+  # Simulador de la flota: arranca solo con "docker compose up", espera a que el backend responda,
+  # inicia los 3 viajes planificados de Seguridad Demo y mueve los 3 vehiculos en bucle.
+  simulator:
+    build: ./simulator
+    command: ["--api", "http://backend:8080", "--flota", "--repetir"]
+    depends_on: [backend]
+    restart: on-failure
+
+
+volumes:
+  pgdata:

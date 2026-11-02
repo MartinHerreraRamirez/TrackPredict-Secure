@@ -1,0 +1,31 @@
+server:
+  port: 8080
+  error:
+    include-message: always   # mensajes controlados (ResponseStatusException); nunca trazas
+    include-stacktrace: never
+spring:
+  application:
+    name: trackpredict-backend
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/trackpredict}
+    username: ${DB_USER:trackpredict}
+    password: ${DB_PASSWORD:trackpredict}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none        # el esquema vive en db/init/*.sql
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+trackpredict:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-change-me-dev-only-secret-change-me}
+    expiration-minutes: 60
+  analytics:
+    base-url: ${ANALYTICS_URL:http://localhost:8000}
+    internal-token: ${INTERNAL_TOKEN:dev-internal-token}
+  alertas:
+    velocidad-limite-kmh: 80
+    parada-prolongada-min: 5
